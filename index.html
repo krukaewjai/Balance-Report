@@ -73,14 +73,14 @@
 
         <div id="status-indicator">กำลังโหลดข้อมูล...</div>
 
-        <div id="report-area"> 
-            </div>
+        <div id="report-area"></div>
     </div>
     
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- 1. CONFIG & DATA ---
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIJTr0hnZVH11qIeoS5vKZ5R_44KXg7x7jjym0WbFLXjKKEKeXwnckFEZ4U-2mm6A/exec"; // ตัวอย่าง URL (กรุณาแทนที่ด้วย URL ของคุณ)
+        // ** ใส่ URL ใหม่! ที่ได้จากการ Deploy ครั้งล่าสุด ตรงนี้ **
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIJTr0hnZVH11qIeoS5vKZ5R_44KXg7x7jjym0WbFLXjKKEKeXwnckFEZ4U-2mm6A/exec";
 
         const CATEGORIES = {
             "ngobpraman": { name: "เงินงบประมาณ", sub: {
@@ -190,8 +190,10 @@
                 allButtons.forEach(btn => btn.disabled = true);
             }
         }
-        function hideStatus() {
-            statusIndicator.classList.remove('visible');
+        function hideStatus(isError = false) {
+            if (!isError) { // Don't hide status if it's an error message
+                statusIndicator.classList.remove('visible');
+            }
             allButtons.forEach(btn => btn.disabled = false);
         }
 
@@ -209,16 +211,16 @@
                 
                 initialBalances = {};
                 (data.initialBalances || []).forEach(row => {
-                    initialBalances[row[0]] = { cash: parseFloat(row[1]), bank: parseFloat(row[2]), gov: parseFloat(row[3]) };
+                    initialBalances[row[0]] = { cash: parseFloat(row[1]) || 0, bank: parseFloat(row[2]) || 0, gov: parseFloat(row[3]) || 0 };
                 });
                 
             } catch (error) {
                 console.error("Error loading data:", error);
                 showStatus(`ผิดพลาด: ไม่สามารถโหลดข้อมูลได้ (${error.message})`, false);
+                hideStatus(true); // Re-enable buttons even on error
                 return;
             }
             hideStatus();
-            renderReport(reportDateInput.value);
         }
 
         async function saveDataToSheet() {
@@ -240,17 +242,19 @@
             } catch (error) {
                 console.error("Error saving data:", error);
                 showStatus(`ผิดพลาด: ไม่สามารถบันทึกข้อมูลได้ (${error.message})`, false);
+                hideStatus(true); // Re-enable buttons
                 return;
             }
             showStatus('บันทึกข้อมูลเรียบร้อยแล้ว!', false);
             setTimeout(() => statusIndicator.classList.remove('visible'), 2000);
+            hideStatus();
         }
         
         // --- 5. CORE FUNCTIONS ---
         const formatCurrency = (num) => (parseFloat(num) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         
         function renderReport(dateString) {
-            if (!reportHeaderDate) return; // Exit if elements not ready
+            if (!reportHeaderDate) return; 
             reportHeaderDate.textContent = `ณ วันที่ ${new Date(dateString).toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
             const balances = JSON.parse(JSON.stringify(initialBalances));
             transactions.filter(t => t.date <= dateString).forEach(t => {
@@ -380,6 +384,8 @@
             reportDateInput.value = today;
             addEventListeners();
             await loadDataFromSheet();
+            // Render report one last time after loading, in case the date is different
+            renderReport(reportDateInput.value);
         }
         
         init();
@@ -387,4 +393,3 @@
     </script>
 </body>
 </html>
-
