@@ -146,9 +146,16 @@
             </table>
         </div>
     </div>
+<div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center; font-size: 1.5em; color: #333;">กำลังโหลดข้อมูล...</div>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
+
+        // =====================================================================
+        // ## CONFIGURATION ##
+        // วาง URL ของ Web App ที่คัดลอกมาในขั้นตอนที่ 2 ที่นี่
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIJwD_JBtTw45PZXIHZ74-vxwEUAATSzpXb6lCEw3jdLIuIx4ILRDs8WawA3H0qs04YQ/exec'; 
+        // =====================================================================
 
         const CATEGORIES = {
             "ngobpraman": { name: "เงินงบประมาณ", sub: {
@@ -174,39 +181,11 @@
             "withholding_tax": { name: "เงินภาษีหัก ณ ที่จ่าย" },
             "contract_guarantee": { name: "เงินประกันสัญญา" },
         };
-
-        // Injecting modal HTML into the body
+        
+        // Injecting modal HTML (no changes here)
         document.body.insertAdjacentHTML('beforeend', `
-            <div id="transaction-modal" class="modal">
-                <div class="modal-content">
-                    <h3>บันทึกรายการรับ/จ่าย</h3>
-                    <form id="transaction-form">
-                        <div class="form-group"><label for="trans-date">วันที่เกิดรายการ</label><input type="date" id="trans-date" required></div>
-                        <div class="form-group"><label for="trans-type">ประเภทรายการ</label><select id="trans-type" required><option value="รายรับ">รายรับ</option><option value="รายจ่าย">รายจ่าย</option></select></div>
-                        <div class="form-group"><label for="trans-category">เลือกหมวดหมู่</label><select id="trans-category" required></select></div>
-                        <div class="form-group"><label for="trans-amount">จำนวนเงิน</label><input type="number" id="trans-amount" step="0.01" required placeholder="0.00"></div>
-                        <div class="form-group"><label for="trans-source">แหล่งเงิน</label><select id="trans-source" required><option value="cash">เงินสด</option><option value="bank">เงินฝากธนาคาร</option><option value="gov">เงินฝากส่วนราชการผู้เบิก</option></select></div>
-                        <div class="form-group"><label for="trans-note">รายละเอียด/หมายเหตุ</label><textarea id="trans-note" rows="2"></textarea></div>
-                        <div class="modal-buttons">
-                            <button type="button" class="btn btn-secondary" data-close>ยกเลิก</button>
-                            <button type="submit" class="btn btn-success">บันทึกรายการ</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div id="balance-modal" class="modal">
-                 <div class="modal-content large">
-                    <h3>ตั้งค่ายอดยกมา / ยอดเริ่มต้น</h3>
-                    <form id="balance-form">
-                        <div class="balance-setup-grid header"><span>หมวดหมู่</span><span style="text-align:right;">เงินสด</span><span style="text-align:right;">เงินฝากธนาคาร</span><span style="text-align:right;">เงินฝากส่วนราชการฯ</span></div>
-                        <div id="balance-form-fields"></div>
-                        <div class="modal-buttons">
-                            <button type="button" class="btn btn-secondary" data-close>ยกเลิก</button>
-                            <button type="submit" class="btn btn-warning">บันทึกยอดยกมา</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <div id="transaction-modal" class="modal"><div class="modal-content"><h3>บันทึกรายการรับ/จ่าย</h3><form id="transaction-form"><div class="form-group"><label for="trans-date">วันที่เกิดรายการ</label><input type="date" id="trans-date" required></div><div class="form-group"><label for="trans-type">ประเภทรายการ</label><select id="trans-type" required><option value="รายรับ">รายรับ</option><option value="รายจ่าย">รายจ่าย</option></select></div><div class="form-group"><label for="trans-category">เลือกหมวดหมู่</label><select id="trans-category" required></select></div><div class="form-group"><label for="trans-amount">จำนวนเงิน</label><input type="number" id="trans-amount" step="0.01" required placeholder="0.00"></div><div class="form-group"><label for="trans-source">แหล่งเงิน</label><select id="trans-source" required><option value="cash">เงินสด</option><option value="bank">เงินฝากธนาคาร</option><option value="gov">เงินฝากส่วนราชการผู้เบิก</option></select></div><div class="form-group"><label for="trans-note">รายละเอียด/หมายเหตุ</label><textarea id="trans-note" rows="2"></textarea></div><div class="modal-buttons"><button type="button" class="btn btn-secondary" data-close>ยกเลิก</button><button type="submit" class="btn btn-success">บันทึกรายการ</button></div></form></div></div>
+            <div id="balance-modal" class="modal"><div class="modal-content large"><h3>ตั้งค่ายอดยกมา / ยอดเริ่มต้น</h3><form id="balance-form"><div class="balance-setup-grid header"><span>หมวดหมู่</span><span style="text-align:right;">เงินสด</span><span style="text-align:right;">เงินฝากธนาคาร</span><span style="text-align:right;">เงินฝากส่วนราชการฯ</span></div><div id="balance-form-fields"></div><div class="modal-buttons"><button type="button" class="btn btn-secondary" data-close>ยกเลิก</button><button type="submit" class="btn btn-warning">บันทึกยอดยกมา</button></div></form></div></div>
         `);
 
         // DOM Element Selections
@@ -220,23 +199,49 @@
         const balanceForm = document.getElementById('balance-form');
         const categorySelect = document.getElementById('trans-category');
         const balanceFormFields = document.getElementById('balance-form-fields');
+        const loadingOverlay = document.getElementById('loading-overlay');
         
         // State Management
-        let transactions = loadData('schoolTransactions_v4', []);
-        let initialBalances = loadData('schoolInitialBalances_v4', {});
-        function loadData(key, defaultValue) {
-            const json = localStorage.getItem(key);
-            try { return json ? JSON.parse(json) : defaultValue; }
-            catch (e) { console.error("Error loading data:", e); return defaultValue; }
-        }
-        function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+        let transactions = [];
+        let initialBalances = {};
 
-        // Core Functions
+        // NEW: Function to interact with Google Apps Script
+        async function callGoogleScript(action, data = {}) {
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action, data })
+                });
+                const result = await response.json();
+                if (result.status === 'error') {
+                    throw new Error(result.message);
+                }
+                return result.data;
+            } catch (error) {
+                console.error('Error calling Google Script:', error);
+                alert(`เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google Sheets: ${error.message}`);
+                return null;
+            }
+        }
+        
+        const showLoading = (message) => {
+            loadingOverlay.textContent = message;
+            loadingOverlay.style.display = 'flex';
+        };
+        const hideLoading = () => {
+            loadingOverlay.style.display = 'none';
+        };
+
+        // Core Functions (renderReport and populateForms are mostly the same)
         const formatCurrency = (num) => (parseFloat(num) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         
         function renderReport(dateString) {
             reportHeaderDate.textContent = `ณ วันที่ ${new Date(dateString).toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
             const balances = JSON.parse(JSON.stringify(initialBalances));
+            
             transactions.filter(t => t.date <= dateString).forEach(t => {
                 if (!balances[t.category]) balances[t.category] = { cash: 0, bank: 0, gov: 0 };
                 const amount = t.type === 'รายรับ' ? parseFloat(t.amount) : -parseFloat(t.amount);
@@ -292,7 +297,6 @@
                 }
                 return `<div class="balance-setup-grid"><label style="padding-left: ${isSub ? '20px' : '0'};">${catName}</label><input type="number" step="0.01" data-key="${catKey}" data-source="cash" placeholder="0.00" style="text-align:right;"><input type="number" step="0.01" data-key="${catKey}" data-source="bank" placeholder="0.00" style="text-align:right;"><input type="number" step="0.01" data-key="${catKey}" data-source="gov" placeholder="0.00" style="text-align:right;"></div>`;
             };
-
             for (const [key, value] of Object.entries(CATEGORIES)) {
                 balHtml += `<div class="balance-setup-grid header" style="margin-top:10px;"><span><b>${value.name}</b></span></div>`;
                 if (value.sub) {
@@ -305,8 +309,8 @@
                     }
                     catHtml += `</optgroup>`;
                 } else if (!value.isHeader) {
-                     catHtml += `<option value="${key}">${value.name}</option>`;
-                     balHtml += renderBalanceField(key, value.name, false, value);
+                       catHtml += `<option value="${key}">${value.name}</option>`;
+                       balHtml += renderBalanceField(key, value.name, false, value);
                 }
             }
             categorySelect.innerHTML = catHtml;
@@ -316,7 +320,7 @@
         function openModal(modalElement) { modalElement.classList.add('active'); const firstInput = modalElement.querySelector('input, select'); if(firstInput) firstInput.focus(); }
         function closeModal(modalElement) { modalElement.classList.remove('active'); }
 
-        // Event Listeners
+        // Event Listeners (Updated for async operations)
         reportDateInput.addEventListener('change', (e) => renderReport(e.target.value));
         document.getElementById('print-btn').addEventListener('click', () => window.print());
         document.getElementById('add-transaction-btn').addEventListener('click', () => { transForm.reset(); document.getElementById('trans-date').value = reportDateInput.value; openModal(transModal); });
@@ -332,39 +336,74 @@
         });
         document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.closest('.modal'))));
         document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); }));
-        transForm.addEventListener('submit', (e) => {
+        
+        transForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const submitBtn = transForm.querySelector('button[type="submit"]');
             const newTransaction = { date: document.getElementById('trans-date').value, type: document.getElementById('trans-type').value, category: categorySelect.value, amount: document.getElementById('trans-amount').value, source: document.getElementById('trans-source').value, note: document.getElementById('trans-note').value.trim(), id: Date.now() };
             if(!newTransaction.date || !newTransaction.amount || newTransaction.amount <= 0) { alert('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง'); return; }
-            transactions.push(newTransaction);
-            saveData('schoolTransactions_v4', transactions);
-            closeModal(transModal);
-            renderReport(reportDateInput.value);
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'กำลังบันทึก...';
+            
+            const result = await callGoogleScript('addTransaction', newTransaction);
+            if (result) {
+                transactions.push(newTransaction);
+                closeModal(transModal);
+                renderReport(reportDateInput.value);
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'บันทึกรายการ';
         });
-        balanceForm.addEventListener('submit', e => {
+
+        balanceForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const submitBtn = balanceForm.querySelector('button[type="submit"]');
             const newBalances = {};
             balanceForm.querySelectorAll('input[type="number"]').forEach(input => {
                 const key = input.dataset.key; const source = input.dataset.source; const value = parseFloat(input.value);
                 if (value) { if (!newBalances[key]) newBalances[key] = {}; newBalances[key][source] = value; }
             });
-            initialBalances = newBalances;
-            saveData('schoolInitialBalances_v4', initialBalances);
-            closeModal(balanceModal);
-            renderReport(reportDateInput.value);
-            alert('บันทึกยอดยกมาเรียบร้อยแล้ว');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'กำลังบันทึก...';
+            
+            const result = await callGoogleScript('saveBalances', newBalances);
+            if(result) {
+                initialBalances = newBalances;
+                closeModal(balanceModal);
+                renderReport(reportDateInput.value);
+                alert('บันทึกยอดยกมาเรียบร้อยแล้ว');
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'บันทึกยอดยกมา';
         });
 
-        // Initialization
-        function init() {
+        // Initialization (Updated to be async)
+        async function init() {
+            showLoading('กำลังโหลดข้อมูล...');
             populateForms();
             const today = new Date().toISOString().split('T')[0];
             reportDateInput.value = today;
+
+            const data = await callGoogleScript('getData');
+            if (data) {
+                transactions = data.transactions || [];
+                initialBalances = data.initialBalances || {};
+            } else {
+                alert("ไม่สามารถโหลดข้อมูลเริ่มต้นได้ กรุณาลองรีเฟรชหน้าเว็บ");
+            }
+            
             renderReport(today);
+            hideLoading();
         }
+
         init();
     });
     </script>
 
 </body>
+
 </html>
