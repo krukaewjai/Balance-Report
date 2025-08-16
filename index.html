@@ -8,7 +8,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* CSS ทั้งหมดเหมือนเดิม */
         :root {
             --primary-color: #007bff; --success-color: #28a745; --warning-color: #ffc107;
             --gray-color: #6c757d; --light-gray: #f8f9fa; --border-color: #dee2e6;
@@ -23,7 +22,7 @@
         .controls .button-group { display: flex; gap: 10px; }
         .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-family: 'Sarabun', sans-serif; font-size: 1em; font-weight: 500; transition: all 0.2s ease; color: white; }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; transform: none; box-shadow: none;}
         .btn-warning { background-color: var(--warning-color); color: black; }
         .btn-success { background-color: var(--success-color); }
         .btn-primary { background-color: var(--primary-color); }
@@ -52,7 +51,8 @@
         .balance-setup-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px 15px; align-items: center; margin-bottom: 8px; }
         .balance-setup-grid .header, .balance-setup-grid .sub-header-label { font-weight: bold; }
         #balance-form-fields { max-height: 50vh; overflow-y: auto; padding-right: 10px; }
-        #status-indicator { text-align: center; margin-top: -15px; margin-bottom: 15px; font-style: italic; color: #555; transition: opacity 0.5s; }
+        #status-indicator { text-align: center; margin-top: -15px; margin-bottom: 15px; font-style: italic; color: #555; opacity: 0; transition: opacity 0.5s; }
+        #status-indicator.visible { opacity: 1; }
         @page { size: A4; margin: 15mm; }
         @media print { body { background-color: white; padding: 0; margin: 0; font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .container { box-shadow: none; border: none; padding: 0; } .controls, .modal, #status-indicator { display: none; } #report-area { margin-top: 0; } .report-table th, .report-table td { border: 1px solid #999 !important; padding: 5px; } }
     </style>
@@ -73,16 +73,16 @@
 
         <div id="status-indicator">กำลังโหลดข้อมูล...</div>
 
-        <div id="report-area"> </div>
+        <div id="report-area"> 
+            </div>
     </div>
+    
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- 1. CONFIG & DATA ---
-        // ** ใส่ URL ของ Web App ที่คัดลอกมา ตรงนี้ **
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyIJTr0hnZVH11qIeoS5vKZ5R_44KXg7x7jjym0WbFLXjKKEKeXwnckFEZ4U-2mm6A/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxLd7nF9J4bQcWw2-bY6Xq2R2vT9mYg_X_o8S3a_E0/exec"; // ตัวอย่าง URL (กรุณาแทนที่ด้วย URL ของคุณ)
 
         const CATEGORIES = {
-            // โครงสร้าง CATEGORIES เหมือนเดิมทุกประการ
             "ngobpraman": { name: "เงินงบประมาณ", sub: {
                 "ridaipandin": { name: "เงินรายได้แผ่นดิน", isHeader: true },
                 "dokbia_other": { name: "ดอกเบี้ยเงินอาหารกลางวัน" },
@@ -107,25 +107,91 @@
             "contract_guarantee": { name: "เงินประกันสัญญา" },
         };
         
-        // --- 2. สร้าง HTML และเลือก ELEMENTS ---
-        // (ส่วนนี้จะสร้าง HTML ของ Report และ Modals ขึ้นมา)
-        // ... โค้ดส่วนนี้ยาว จึงย่อไว้ แต่ไม่ต้องแก้ไขอะไร ...
+        // --- 2. HTML STRUCTURES ---
+        function createInitialHTML() {
+            document.getElementById('report-area').innerHTML = `
+                <h1>โรงเรียนบ้านคอกม้า</h1>
+                <h2 id="report-header-date"></h2>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>ประเภท</th><th class="amount">เงินสด</th><th class="amount">เงินฝากธนาคาร</th>
+                            <th class="amount">เงินฝากส่วนราชการผู้เบิก</th><th class="amount">รวม</th><th>หมายเหตุ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="report-body"></tbody>
+                    <tfoot>
+                        <tr>
+                            <td>รวมทั้งสิ้น</td><td class="amount" id="total-cash">0.00</td><td class="amount" id="total-bank">0.00</td>
+                            <td class="amount" id="total-gov">0.00</td><td class="amount" id="total-all">0.00</td><td></td>
+                        </tr>
+                    </tfoot>
+                </table>`;
 
-        // --- 3. STATE MANAGEMENT (ปรับปรุงใหม่ทั้งหมด) ---
+            document.body.insertAdjacentHTML('beforeend', `
+            <div id="transaction-modal" class="modal">
+                <div class="modal-content">
+                    <h3>บันทึกรายการรับ/จ่าย</h3>
+                    <form id="transaction-form">
+                        <div class="form-group"><label for="trans-date">วันที่เกิดรายการ</label><input type="date" id="trans-date" required></div>
+                        <div class="form-group"><label for="trans-type">ประเภทรายการ</label><select id="trans-type" required><option value="รายรับ">รายรับ</option><option value="รายจ่าย">รายจ่าย</option></select></div>
+                        <div class="form-group"><label for="trans-category">เลือกหมวดหมู่</label><select id="trans-category" required></select></div>
+                        <div class="form-group"><label for="trans-amount">จำนวนเงิน</label><input type="number" id="trans-amount" step="0.01" required placeholder="0.00"></div>
+                        <div class="form-group"><label for="trans-source">แหล่งเงิน</label><select id="trans-source" required><option value="cash">เงินสด</option><option value="bank">เงินฝากธนาคาร</option><option value="gov">เงินฝากส่วนราชการผู้เบิก</option></select></div>
+                        <div class="form-group"><label for="trans-note">รายละเอียด/หมายเหตุ</label><textarea id="trans-note" rows="2"></textarea></div>
+                        <div class="modal-buttons">
+                            <button type="button" class="btn btn-secondary" data-close>ยกเลิก</button>
+                            <button type="submit" class="btn btn-success">บันทึกรายการ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div id="balance-modal" class="modal">
+                 <div class="modal-content large">
+                    <h3>ตั้งค่ายอดยกมา / ยอดเริ่มต้น</h3>
+                    <form id="balance-form">
+                        <div class="balance-setup-grid header"><span>หมวดหมู่</span><span style="text-align:right;">เงินสด</span><span style="text-align:right;">เงินฝากธนาคาร</span><span style="text-align:right;">เงินฝากส่วนราชการฯ</span></div>
+                        <div id="balance-form-fields"></div>
+                        <div class="modal-buttons">
+                            <button type="button" class="btn btn-secondary" data-close>ยกเลิก</button>
+                            <button type="submit" class="btn btn-warning">บันทึกยอดยกมา</button>
+                        </div>
+                    </form>
+                </div>
+            </div>`);
+        }
+
+        // --- 3. DOM ELEMENTS ---
+        let reportDateInput, reportHeaderDate, reportBody, totals, transModal, balanceModal, transForm, balanceForm, categorySelect, balanceFormFields, statusIndicator, allButtons;
+        
+        function selectElements() {
+             reportDateInput = document.getElementById('report-date');
+             reportHeaderDate = document.getElementById('report-header-date');
+             reportBody = document.getElementById('report-body');
+             totals = { cash: document.getElementById('total-cash'), bank: document.getElementById('total-bank'), gov: document.getElementById('total-gov'), all: document.getElementById('total-all') };
+             transModal = document.getElementById('transaction-modal');
+             balanceModal = document.getElementById('balance-modal');
+             transForm = document.getElementById('transaction-form');
+             balanceForm = document.getElementById('balance-form');
+             categorySelect = document.getElementById('trans-category');
+             balanceFormFields = document.getElementById('balance-form-fields');
+             statusIndicator = document.getElementById('status-indicator');
+             allButtons = document.querySelectorAll('.btn');
+        }
+
+        // --- 4. STATE MANAGEMENT ---
         let transactions = [];
         let initialBalances = {};
-        const statusIndicator = document.getElementById('status-indicator');
-        const allButtons = document.querySelectorAll('.btn');
 
-        function showStatus(message, isSaving = false) {
+        function showStatus(message, isLoading = false) {
             statusIndicator.textContent = message;
-            statusIndicator.style.opacity = '1';
-            if (isSaving) {
+            statusIndicator.classList.add('visible');
+            if (isLoading) {
                 allButtons.forEach(btn => btn.disabled = true);
             }
         }
         function hideStatus() {
-            statusIndicator.style.opacity = '0';
+            statusIndicator.classList.remove('visible');
             allButtons.forEach(btn => btn.disabled = false);
         }
 
@@ -133,91 +199,190 @@
             showStatus('กำลังโหลดข้อมูลล่าสุด...', true);
             try {
                 const response = await fetch(SCRIPT_URL);
-                if (!response.ok) throw new Error('Network response was not ok');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
                 
-                // แปลงข้อมูล Array กลับเป็น Object
                 transactions = (data.transactions || []).map(row => ({
                     date: row[0], type: row[1], category: row[2],
-                    amount: row[3], source: row[4], note: row[5]
+                    amount: parseFloat(row[3]), source: row[4], note: row[5]
                 }));
                 
                 initialBalances = {};
                 (data.initialBalances || []).forEach(row => {
-                    initialBalances[row[0]] = { cash: row[1], bank: row[2], gov: row[3] };
+                    initialBalances[row[0]] = { cash: parseFloat(row[1]), bank: parseFloat(row[2]), gov: parseFloat(row[3]) };
                 });
                 
             } catch (error) {
                 console.error("Error loading data:", error);
-                showStatus('ผิดพลาด: ไม่สามารถโหลดข้อมูลได้', false);
-                return; // ไม่ซ่อน status ถ้าโหลดพลาด
+                showStatus(`ผิดพลาด: ไม่สามารถโหลดข้อมูลได้ (${error.message})`, false);
+                return;
             }
             hideStatus();
-            // เมื่อโหลดเสร็จ ให้แสดงผลรายงาน
             renderReport(reportDateInput.value);
         }
 
         async function saveDataToSheet() {
             showStatus('กำลังบันทึกข้อมูล...', true);
             
-            // แปลงข้อมูล Object กลับเป็น Array
-            const transactionsArray = transactions.map(t => [t.date, t.type, t.category, t.amount, t.source, t.note]);
-            const balancesArray = Object.entries(initialBalances).map(([key, val]) => [key, val.cash, val.bank, val.gov]);
+            const transactionsArray = transactions.map(t => [t.date, t.type, t.category, t.amount, t.source, t.note || ""]);
+            const balancesArray = Object.entries(initialBalances).map(([key, val]) => [key, val.cash || 0, val.bank || 0, val.gov || 0]);
             
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // Apps Script web apps often require this
+                    body: JSON.stringify({ transactions: transactionsArray, initialBalances: balancesArray }),
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions: transactionsArray, initialBalances: balancesArray })
                 });
-                // Note: no-cors mode means we won't be able to read the response, but the data will be sent.
-                
+                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                 const result = await response.json();
+                 if (result.status !== 'success') throw new Error(result.message);
+
             } catch (error) {
                 console.error("Error saving data:", error);
-                showStatus('ผิดพลาด: ไม่สามารถบันทึกข้อมูลได้', false);
+                showStatus(`ผิดพลาด: ไม่สามารถบันทึกข้อมูลได้ (${error.message})`, false);
                 return;
             }
             showStatus('บันทึกข้อมูลเรียบร้อยแล้ว!', false);
-            setTimeout(hideStatus, 2000); // ซ่อนข้อความหลังจาก 2 วินาที
+            setTimeout(() => statusIndicator.classList.remove('visible'), 2000);
         }
         
-        // --- 4. CORE FUNCTIONS ---
-        // (ฟังก์ชัน renderReport, populateForms, open/closeModal เหมือนเดิม)
-        // ... โค้ดส่วนนี้ยาว จึงย่อไว้ แต่ไม่ต้องแก้ไขอะไร ...
+        // --- 5. CORE FUNCTIONS ---
+        const formatCurrency = (num) => (parseFloat(num) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        
+        function renderReport(dateString) {
+            if (!reportHeaderDate) return; // Exit if elements not ready
+            reportHeaderDate.textContent = `ณ วันที่ ${new Date(dateString).toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
+            const balances = JSON.parse(JSON.stringify(initialBalances));
+            transactions.filter(t => t.date <= dateString).forEach(t => {
+                if (!balances[t.category]) balances[t.category] = { cash: 0, bank: 0, gov: 0 };
+                const amount = t.type === 'รายรับ' ? t.amount : -t.amount;
+                balances[t.category][t.source] = (balances[t.category][t.source] || 0) + amount;
+            });
+            const todayNotes = {};
+            transactions.filter(t => t.date === dateString).forEach(t => {
+                if (!todayNotes[t.category]) todayNotes[t.category] = [];
+                if (t.note) todayNotes[t.category].push(t.note);
+            });
 
-        // --- 5. EVENT LISTENERS (ปรับปรุงเล็กน้อย) ---
-        transForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            // ... (โค้ดดึงข้อมูลจากฟอร์มเหมือนเดิม)
-            transactions.push(newTransaction);
-            renderReport(reportDateInput.value); // แสดงผลก่อน
-            saveDataToSheet(); // แล้วค่อยบันทึก
-            closeModal(transModal);
-        });
+            let html = '';
+            let totalCash = 0, totalBank = 0, totalGov = 0;
 
-        balanceForm.addEventListener('submit', e => {
-            e.preventDefault();
-            // ... (โค้ดดึงข้อมูลจากฟอร์มเหมือนเดิม)
-            initialBalances = newBalances;
-            renderReport(reportDateInput.value); // แสดงผลก่อน
-            saveDataToSheet(); // แล้วค่อยบันทึก
-            closeModal(balanceModal);
-        });
+            const renderRow = (catKey, catData, isSub = false, isGroup = false) => {
+                if (catData.isHeader) {
+                    return `<tr><td class="sub-header" colspan="6">${catData.name}</td></tr>`;
+                }
+                const balance = balances[catKey] || { cash: 0, bank: 0, gov: 0 };
+                const notes = (todayNotes[catKey] || []).join(', ');
+                const rowTotal = (balance.cash || 0) + (balance.bank || 0) + (balance.gov || 0);
+                if (!isGroup) {
+                    totalCash += balance.cash || 0;
+                    totalBank += balance.bank || 0;
+                    totalGov += balance.gov || 0;
+                }
+                return `<tr class="${isGroup ? 'category-group' : ''}"><td class="${isSub ? 'sub-category' : ''}" ${isGroup ? 'colspan="6"' : ''}>${catData.name}</td>${!isGroup ? `<td class="amount">${formatCurrency(balance.cash)}</td><td class="amount">${formatCurrency(balance.bank)}</td><td class="amount">${formatCurrency(balance.gov)}</td><td class="amount">${formatCurrency(rowTotal)}</td><td>${notes}</td>` : ''}</tr>`;
+            };
 
-        // --- 6. INITIALIZATION ---
+            for (const [key, value] of Object.entries(CATEGORIES)) {
+                html += renderRow(key, value, false, true);
+                if (value.sub) {
+                    for (const [subKey, subValue] of Object.entries(value.sub)) {
+                        html += renderRow(`${key}.${subKey}`, subValue, true, false);
+                    }
+                } else if (!value.isHeader) {
+                    html += renderRow(key, value, false, false);
+                }
+            }
+            reportBody.innerHTML = html;
+            totals.cash.textContent = formatCurrency(totalCash);
+            totals.bank.textContent = formatCurrency(totalBank);
+            totals.gov.textContent = formatCurrency(totalGov);
+            totals.all.textContent = formatCurrency(totalCash + totalBank + totalGov);
+        }
+
+        function populateForms() {
+            let catHtml = ''; let balHtml = '';
+            const renderBalanceField = (catKey, catName, isSub = false, catData = {}) => {
+                if (catData.isHeader) {
+                    return `<div class="balance-setup-grid sub-header-label"><span style="padding-left: ${isSub ? '20px' : '0'}; grid-column: 1 / -1;">${catName}</span></div>`;
+                }
+                return `<div class="balance-setup-grid"><label style="padding-left: ${isSub ? '20px' : '0'};">${catName}</label><input type="number" step="0.01" data-key="${catKey}" data-source="cash" placeholder="0.00" style="text-align:right;"><input type="number" step="0.01" data-key="${catKey}" data-source="bank" placeholder="0.00" style="text-align:right;"><input type="number" step="0.01" data-key="${catKey}" data-source="gov" placeholder="0.00" style="text-align:right;"></div>`;
+            };
+
+            for (const [key, value] of Object.entries(CATEGORIES)) {
+                balHtml += `<div class="balance-setup-grid header" style="margin-top:10px;"><span><b>${value.name}</b></span></div>`;
+                if (value.sub) {
+                    catHtml += `<optgroup label="${value.name}">`;
+                    for (const [subKey, subValue] of Object.entries(value.sub)) {
+                        if (!subValue.isHeader) catHtml += `<option value="${key}.${subKey}">${subValue.name}</option>`;
+                        balHtml += renderBalanceField(`${key}.${subKey}`, subValue.name, true, subValue);
+                    }
+                    catHtml += `</optgroup>`;
+                } else if (!value.isHeader) {
+                     catHtml += `<option value="${key}">${value.name}</option>`;
+                     balHtml += renderBalanceField(key, value.name, false, value);
+                }
+            }
+            categorySelect.innerHTML = catHtml;
+            balanceFormFields.innerHTML = balHtml;
+        }
+
+        function openModal(modalElement) { modalElement.classList.add('active'); const firstInput = modalElement.querySelector('input, select'); if(firstInput) firstInput.focus(); }
+        function closeModal(modalElement) { modalElement.classList.remove('active'); }
+
+        // --- 6. EVENT LISTENERS ---
+        function addEventListeners() {
+            reportDateInput.addEventListener('change', (e) => renderReport(e.target.value));
+            document.getElementById('print-btn').addEventListener('click', () => window.print());
+            document.getElementById('add-transaction-btn').addEventListener('click', () => { transForm.reset(); document.getElementById('trans-date').value = reportDateInput.value; openModal(transModal); });
+            document.getElementById('setup-balance-btn').addEventListener('click', () => {
+                balanceForm.reset();
+                for (const [key, values] of Object.entries(initialBalances)) {
+                    for (const [source, amount] of Object.entries(values)) {
+                        const input = balanceForm.querySelector(`input[data-key="${key}"][data-source="${source}"]`);
+                        if(input) input.value = amount;
+                    }
+                }
+                openModal(balanceModal);
+            });
+            document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.closest('.modal'))));
+            document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); }));
+            
+            transForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newTransaction = { date: document.getElementById('trans-date').value, type: document.getElementById('trans-type').value, category: categorySelect.value, amount: parseFloat(document.getElementById('trans-amount').value), source: document.getElementById('trans-source').value, note: document.getElementById('trans-note').value.trim() };
+                if(!newTransaction.date || !newTransaction.amount || newTransaction.amount <= 0) { alert('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง'); return; }
+                transactions.push(newTransaction);
+                renderReport(reportDateInput.value);
+                closeModal(transModal);
+                await saveDataToSheet();
+            });
+
+            balanceForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const newBalances = {};
+                balanceForm.querySelectorAll('input[type="number"]').forEach(input => {
+                    const key = input.dataset.key; const source = input.dataset.source; const value = parseFloat(input.value);
+                    if (value) { if (!newBalances[key]) newBalances[key] = {}; newBalances[key][source] = value; }
+                });
+                initialBalances = newBalances;
+                renderReport(reportDateInput.value);
+                closeModal(balanceModal);
+                await saveDataToSheet();
+            });
+        }
+
+        // --- 7. INITIALIZATION ---
         async function init() {
-            // โค้ดเต็มส่วนที่ย่อไว้ จะถูกใส่ที่นี่
+            createInitialHTML();
+            selectElements();
             populateForms();
             const today = new Date().toISOString().split('T')[0];
             reportDateInput.value = today;
-            await loadDataFromSheet(); // รอโหลดข้อมูลให้เสร็จก่อน
+            addEventListeners();
+            await loadDataFromSheet();
         }
         
         init();
-
-        // --- PASTE FULL CODE FOR HIDDEN SECTIONS HERE ---
-        // (This is where the previously omitted code goes)
     });
     </script>
 </body>
