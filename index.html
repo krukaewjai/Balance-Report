@@ -59,6 +59,11 @@
         .report-table .sub-category { padding-left: 30px; }
         .report-table .sub-header { padding-left: 30px; font-weight: bold; }
         .report-table tfoot tr { background-color: var(--light-gray); font-weight: 700; }
+        /* เพิ่มโค้ดนี้เข้าไปในส่วน <style> ได้เลย */
+        .report-table .summary-row td { 
+    background-color: var(--light-gray); 
+    font-weight: 700;
+}
         .signature-area {
             margin-top: 50px; padding-top: 20px; display: grid;
             grid-template-columns: repeat(2, 1fr); gap: 40px 20px; text-align: center;
@@ -237,7 +242,6 @@
 
         // Core Functions (renderReport and populateForms are mostly the same)
         const formatCurrency = (num) => (parseFloat(num) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        
         function renderReport(dateString) {
             reportHeaderDate.textContent = `ณ วันที่ ${new Date(dateString).toLocaleDateString('th-TH', { dateStyle: 'long' })}`;
             const balances = JSON.parse(JSON.stringify(initialBalances));
@@ -252,6 +256,28 @@
                 if (!todayNotes[t.category]) todayNotes[t.category] = [];
                 if (t.note) todayNotes[t.category].push(t.note);
             });
+
+            // --- ส่วนที่เพิ่มเข้ามา: คำนวณยอดรวมพิเศษ ---
+            const udnunKeys = [
+                'ngobpraman.dokbia_lunch', 'norkngob_udnun.udnun_raiha', 'norkngob_udnun.padjaipuentan', 
+                'norkngob_udnun.textbook', 'norkngob_udnun.supplies', 'norkngob_udnun.uniform', 'norkngob_udnun.activity'
+            ];
+            const ridaiSchoolKeys = ['ridai_school.ridai_general', 'ridai_school.borijak'];
+
+            const calculateSpecialTotal = (keys) => {
+                const total = { cash: 0, bank: 0, gov: 0 };
+                keys.forEach(key => {
+                    const balance = balances[key] || { cash: 0, bank: 0, gov: 0 };
+                    total.cash += balance.cash || 0;
+                    total.bank += balance.bank || 0;
+                    total.gov += balance.gov || 0;
+                });
+                return total;
+            };
+
+            const udnunTotal = calculateSpecialTotal(udnunKeys);
+            const ridaiSchoolTotal = calculateSpecialTotal(ridaiSchoolKeys);
+            // --- จบส่วนที่เพิ่มเข้ามา ---
 
             let html = '';
             let totalCash = 0, totalBank = 0, totalGov = 0;
@@ -271,6 +297,7 @@
                 return `<tr class="${isGroup ? 'category-group' : ''}"><td class="${isSub ? 'sub-category' : ''}" ${isGroup ? 'colspan="6"' : ''}>${catData.name}</td>${!isGroup ? `<td class="amount">${formatCurrency(balance.cash)}</td><td class="amount">${formatCurrency(balance.bank)}</td><td class="amount">${formatCurrency(balance.gov)}</td><td class="amount">${formatCurrency(rowTotal)}</td><td>${notes}</td>` : ''}</tr>`;
             };
 
+            // --- ส่วนที่แก้ไข: การสร้าง HTML ของตาราง ---
             for (const [key, value] of Object.entries(CATEGORIES)) {
                 html += renderRow(key, value, false, true);
                 if (value.sub) {
@@ -280,14 +307,40 @@
                 } else if (!value.isHeader) {
                     html += renderRow(key, value, false, false);
                 }
+
+                // ตรวจสอบเพื่อเพิ่มแถวสรุป "เงินอุดหนุน"
+                if (key === 'norkngob_udnun') {
+                    const total = udnunTotal.cash + udnunTotal.bank + udnunTotal.gov;
+                    html += `<tr class="summary-row">
+                                <td class="sub-category">รวมเงินอุดหนุน</td>
+                                <td class="amount">${formatCurrency(udnunTotal.cash)}</td>
+                                <td class="amount">${formatCurrency(udnunTotal.bank)}</td>
+                                <td class="amount">${formatCurrency(udnunTotal.gov)}</td>
+                                <td class="amount">${formatCurrency(total)}</td>
+                                <td></td>
+                             </tr>`;
+                }
+                // ตรวจสอบเพื่อเพิ่มแถวสรุป "เงินรายได้สถานศึกษา"
+                if (key === 'ridai_school') {
+                    const total = ridaiSchoolTotal.cash + ridaiSchoolTotal.bank + ridaiSchoolTotal.gov;
+                    html += `<tr class="summary-row">
+                                <td class="sub-category">รวมเงินรายได้สถานศึกษา</td>
+                                <td class="amount">${formatCurrency(ridaiSchoolTotal.cash)}</td>
+                                <td class="amount">${formatCurrency(ridaiSchoolTotal.bank)}</td>
+                                <td class="amount">${formatCurrency(ridaiSchoolTotal.gov)}</td>
+                                <td class="amount">${formatCurrency(total)}</td>
+                                <td></td>
+                             </tr>`;
+                }
             }
+            // --- จบส่วนที่แก้ไข ---
+
             reportBody.innerHTML = html;
             totals.cash.textContent = formatCurrency(totalCash);
             totals.bank.textContent = formatCurrency(totalBank);
             totals.gov.textContent = formatCurrency(totalGov);
             totals.all.textContent = formatCurrency(totalCash + totalBank + totalGov);
         }
-
         function populateForms() {
             let catHtml = '';
             let balHtml = '';
@@ -407,3 +460,4 @@
 </body>
 
 </html>
+
